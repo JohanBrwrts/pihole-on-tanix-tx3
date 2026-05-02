@@ -90,7 +90,12 @@ and what you observed.
 
 ## License
 
-See [LICENSE](LICENSE).
+Copyright (c) 2026 Johan Bierwerts
+
+This work is licensed under a [Creative Commons Attribution-ShareAlike
+4.0 International License](https://creativecommons.org/licenses/by-sa/4.0/).
+
+See [LICENSE](LICENSE) for the full legal text.
 
 ## Related projects
 
