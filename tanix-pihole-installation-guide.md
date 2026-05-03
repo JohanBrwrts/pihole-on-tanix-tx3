@@ -116,9 +116,15 @@ Select an image release that matches **all** of:
 - **`s905x3`** in the asset filename (not `s905x3-b`)
 - **`bookworm`** or **`trixie`** for Debian (this guide assumes **Trixie**)
 - **`Minimal`** in the name (no desktop environment)
-- A kernel version on a **stable LTS line** — at the time of writing,
-  6.12.x is the recommended sweet spot. Newer 6.18.x or 6.20.x kernels
-  exist but are less battle-tested for 24/7 server use
+- A kernel version on a **stable LTS line** with substantial
+  production maturity. At the time of writing, **6.12.x** is the
+  recommended sweet spot — it's an LTS kernel (EOL December 2028)
+  that has been in wide production use as the basis for Debian 13
+  Trixie since mid-2025, so early-life issues are largely worked
+  out. **6.18.x** is also LTS (EOL December 2028) but significantly
+  newer; suitable if you want recent drivers, but for a 24/7
+  appliance where stability matters more than features, 6.12
+  has more accumulated maturity
 
 Example asset name (used in this guide):
 ```
@@ -128,11 +134,18 @@ Devmfc_Debian-Trixie_6.12.56-meson64_Minimal-25.10.29.img.xz
 Download the `.img.xz` file (about 100-150 MB compressed; 1-1.5 GB
 when extracted).
 
-> **Why not the latest kernel version?** For a system in the critical
-> path of your network (DNS), pick boring over bleeding edge. A 6.12.x
-> LTS kernel will get security backports for years; a 6.20.x mainline
-> kernel may get replaced by 6.21 next month with whatever new bugs
-> that brings.
+> **LTS isn't the only criterion — maturity matters too.** Both
+> 6.12 and 6.18 are LTS kernels with support to December 2028.
+> The difference is time-in-production: 6.12 has been the basis
+> for Debian 13 Trixie since mid-2025 and has accumulated many
+> backported bug fixes, while 6.18 was released in December 2025
+> and is still working through its early-life patches. For a
+> 24/7 DNS appliance where stability outweighs features, the more
+> mature LTS is the safer choice. For a workstation or new
+> hardware where you want recent drivers, 6.18 is fine. Avoid
+> non-LTS mainline releases (e.g. 6.19, 6.20) for any always-on
+> server role — they get only ~2 months of active maintenance
+> before the next release supersedes them.
 
 ### 1.2 A note on board revisions and DTB support
 
@@ -1312,4 +1325,8 @@ Section 1.1 expanded with rationale for choosing devmfc's image over
 Armbian for this use case. Section 1.2 added covering board revisions
 and DTB support — explains why hardware-lottery on Amlogic TV-boxes
 makes DTB-aware image selection essential, and why devmfc's curated
-`boot.config` list works well for the Tanix TX3 specifically.*
+`boot.config` list works well for the Tanix TX3 specifically.
+Kernel selection guidance corrected — 6.18 is also an LTS kernel
+(both 6.12 and 6.18 have EOL December 2028 since the February 2026
+extension), so the choice between them is about production maturity
+rather than LTS status.*
