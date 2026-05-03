@@ -75,6 +75,40 @@ Optional appendices follow at the end:
 
 ### 1.1 Pick the right image
 
+This guide uses **devmfc's `debian-on-amlogic`** image. There's also
+a popular alternative — Armbian's community builds for S905X3. Both
+work; the choice comes down to preference.
+
+**Why devmfc for this use case**:
+
+- **Minimal Debian, no extra distro layer.** devmfc ships clean Debian
+  with vendor-style packaging conventions. Armbian adds its own layer
+  (`armbian-config`, custom motd, distro-specific tweaks) which is
+  great for desktop and multi-purpose use, but adds moving parts you
+  don't need on a single-purpose appliance.
+- **Recent kernels.** devmfc tracks current LTS kernels (6.12.x, 6.18.x
+  available); Armbian's stable line is more conservative. For TV-boxes
+  where drivers are still evolving, recent matters.
+- **Conservative defaults that match server use.** For example, devmfc's
+  zram-config only activates on SD-card boots, not USB or eMMC — a
+  reasonable choice for stability that Armbian doesn't make for you.
+- **Pi-hole is on the maintainer's own short-list.** devmfc explicitly
+  mentions Pi-hole, Nextcloud, NAS as the use cases the images are
+  designed for. You're working with "tested for this" rather than
+  "should work in theory".
+- **Recovery via reset button.** devmfc uses the vendor bootloader and
+  documents recovery via the box's reset button. If something breaks
+  during experimentation you can almost always get back to a working
+  state without specialized tools.
+
+**Where Armbian wins**: bigger community, more documentation in the
+broader Linux ecosystem, `armbian-config` for configuring networking
+and storage interactively, more predictable release cycles. If you
+want to use the box as a general-purpose Linux machine rather than a
+dedicated DNS appliance, Armbian is a more comfortable starting point.
+
+---
+
 Go to https://github.com/devmfc/debian-on-amlogic/releases.
 
 Select an image release that matches **all** of:
@@ -1220,4 +1254,8 @@ explicitly installs `logrotate` with `--force-confnew` to pre-empt
 this prompt before the Pi-hole installer runs. Appendix B.1 documents
 the recovery procedure if you hit the hang anyway, and Appendix B.2
 preserves the dnsutils workaround as historical reference for those
-on older Pi-hole versions.*
+on older Pi-hole versions. Section 8.3 updated with `pihole -g` as
+the proper fix for the gravity-not-loaded-immediately-after-install
+symptom (replacing the unreliable "wait 30-60 seconds" advice).
+Section 1.1 expanded with rationale for choosing devmfc's image over
+Armbian for this use case.*
