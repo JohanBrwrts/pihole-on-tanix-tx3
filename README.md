@@ -19,17 +19,18 @@ adventure. This guide walks through the complete setup, including
 several gotchas that aren't well-documented elsewhere:
 
 - The right `boot.config` entry for the Tanix TX3
-- A workaround for Pi-hole's installer failing on Debian Trixie
-  ([upstream bug](https://github.com/pi-hole/pi-hole/issues/6436))
-- The misleading `/etc/logrotate.conf` modified prompt during install
-  ([explained in upstream discussion](https://github.com/devmfc/debian-on-amlogic/discussions/236))
+- A silent installer hang caused by an invisible `/etc/logrotate.conf`
+  conffile prompt — explained, prevented, and recovery documented
+  ([root cause confirmed by devmfc](https://github.com/devmfc/debian-on-amlogic/discussions/236))
+- Pi-hole's gravity blocklist not blocking immediately after install
+  (and the simple one-line fix)
 - Reverse-DNS limitations on stock Netgear router firmware
 - iOS/Android private MAC quirks affecting Pi-hole's client visibility
 
 ## What's in this repo
 
 - **[Installation guide](tanix-pihole-installation-guide.md)** — the
-  complete, step-by-step procedure (~1000 lines). Start here.
+  complete, step-by-step procedure (~1200 lines). Start here.
 
 The guide includes:
 - Configuration variables to adapt to your own network
@@ -38,10 +39,11 @@ The guide includes:
 - Router DHCP setup with reservation outside the DHCP range
 - Initial system configuration (hostname, timezone, network)
 - System updates with handling of common dpkg prompts
-- Pi-hole installation including the dnsutils workaround
+- Pi-hole installation, with explicit handling of image-specific quirks
 - Pi-hole tuning (blocklists, conditional forwarding, DNS settings)
 - Verification and rollout to network clients
-- Optional appendices: SSH key auth, log management, troubleshooting
+- Optional appendices: SSH key auth, log management, troubleshooting,
+  recovery procedures for known image-specific issues
 
 ## Who is this for?
 
@@ -71,15 +73,11 @@ full compatibility list.
 
 ## Status
 
-The procedure has been verified by performing a clean install from
-scratch (a second-time install, not the original installation that
-inspired it). Feedback from that second install is incorporated.
-
-The Pi-hole `dnsutils` issue ([#6436](https://github.com/pi-hole/pi-hole/issues/6436))
-is still open at the time of writing. The logrotate cause has been
-[acknowledged by devmfc](https://github.com/devmfc/debian-on-amlogic/discussions/236)
-and will be fixed in a future image release — at which point that
-section of the guide can be skipped.
+Verified through three clean installs. The original `dnsutils`
+workaround is no longer needed — fixed upstream in
+[PR #6444](https://github.com/pi-hole/pi-hole/pull/6444). The
+remaining quirks (logrotate prompt, gravity load timing) are handled
+in the procedure itself.
 
 ## Contributing
 
@@ -112,8 +110,10 @@ See [LICENSE](LICENSE) for the full legal text.
 
 This guide builds on the work of:
 - **devmfc** for maintaining `debian-on-amlogic`, which makes running
-  modern Debian on Amlogic TV-boxes straightforward
-- **The Pi-hole team** for the software itself
+  modern Debian on Amlogic TV-boxes straightforward, and for
+  responsive engagement on the logrotate diagnosis
+- **The Pi-hole team** for the software itself, and for fixing the
+  Trixie compatibility issue upstream
 - **StevenBlack, OISD, HaGeZi** and other blocklist maintainers
-- The various GitHub issue and forum threads that helped me piece
-  together the dnsutils workaround
+- The various GitHub issue and forum threads that helped along the
+  way
