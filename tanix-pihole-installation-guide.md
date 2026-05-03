@@ -531,14 +531,27 @@ dig @127.0.0.1 google.com +short                   # Should return real IPs
 dig @127.0.0.1 doubleclick.net +short              # Should return 0.0.0.0
 ```
 
-> **First blocking test may "fail" briefly**: If `dig doubleclick.net`
-> returns a real IP instead of `0.0.0.0` immediately after install,
-> wait 30-60 seconds (or trigger another query first) and try again.
-> Pi-hole's gravity database loads asynchronously after FTL starts,
-> so there can be a small window where DNS resolution works but
-> blocking isn't yet active. A reboot or `systemctl restart
-> pihole-FTL` also resolves it. This isn't a bug — just initialization
-> timing.
+> **If `doubleclick.net` returns real IPs instead of `0.0.0.0`**: this
+> is common immediately after install. Pi-hole has built the gravity
+> database on disk (you'll see `[i] Number of gravity domains: ~80000`
+> in the installer output), but FTL may not have loaded it into its
+> in-memory blocking tree yet. While `pihole status` reports
+> "blocking enabled", queries are still being forwarded upstream
+> instead of being blocked.
+>
+> **The fix**: force a gravity reload (typically takes 5-10 seconds
+> on the Tanix):
+>
+> ```bash
+> pihole -g
+> dig @127.0.0.1 doubleclick.net +short    # Should now return 0.0.0.0
+> ```
+>
+> `pihole -g` will report `Status: No changes detected` for the
+> blocklist source — that's expected, because the database content
+> doesn't need updating. What it does do is rebuild and swap the
+> in-memory gravity tree, which is what was missing. A reboot
+> achieves the same effect but takes longer.
 
 Then open in your browser:
 ```
