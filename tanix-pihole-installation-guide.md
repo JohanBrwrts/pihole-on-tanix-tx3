@@ -77,7 +77,7 @@ Optional appendices follow at the end:
 
 This guide uses **devmfc's `debian-on-amlogic`** image. There's also
 a popular alternative — Armbian's community builds for S905X3. Both
-work; the choice comes down to preference.
+work; the choice comes down to preference/ease.
 
 **Why devmfc for this use case**:
 
@@ -134,7 +134,58 @@ when extracted).
 > kernel may get replaced by 6.21 next month with whatever new bugs
 > that brings.
 
-### 1.2 Extract the image
+### 1.2 A note on board revisions and DTB support
+
+Amlogic TV-boxes are notorious for hardware-lottery: vendors like
+Tanix, Vontar and X96 silently change board revisions (different
+WiFi chips, ethernet PHYs, RAM modules) without changing the model
+name. The same "Tanix TX3" can be a `QZ` board (gigabit ethernet,
+S905X3) or a `BZ` board (100 Mbit, S905X3) — same box, different
+internals.
+
+Linux on ARM hardware needs a **device tree blob (DTB)** that
+matches the specific board so the kernel knows which drivers to
+load for which peripherals. A wrong DTB means broken WiFi,
+non-functional ethernet, or a box that doesn't boot at all. So
+choosing an image that has a DTB for your specific board revision
+is essential.
+
+This is one of the practical reasons the guide uses devmfc's image:
+**its `boot.config` lets you pick from a curated list of tested
+DTBs by name** (e.g. `box=tanixtx3` for the QZ revision,
+`box=tanixtx3_100M` for the BZ revision), and devmfc layers this on
+top of the **vendor u-boot from the box's eMMC**. The vendor
+bootloader already knows the box, so the DTB selection is the only
+hardware-specific decision you need to make.
+
+**The Armbian alternative**: official Armbian (`armbian.com`) has
+limited S905X3 board support — many specific revisions including
+`TX3(QZ)` aren't in the standard builds. The community-maintained
+[`ophub/amlogic-s9xxx-armbian`](https://github.com/ophub/amlogic-s9xxx-armbian)
+repository fills the gap with images that *do* support both
+`TX3(QZ)` and `TX3(BZ)`. It works, but the boot stack is different:
+ophub replaces the bootloader chain on the boot medium, which gives
+you more flexibility but also slightly more risk if something goes
+wrong.
+
+**For this guide**: I tried ophub first (it's the path most S905X3
+TV-box documentation points to), then switched to devmfc when it
+became clear the use case was a stable single-purpose appliance
+rather than experimental tinkering. Both routes can produce a
+working Pi-hole; the procedures below are devmfc-specific.
+
+**Verifying your board**: after first boot, you can confirm
+ethernet capability and PHY chip with:
+
+```bash
+dmesg | grep eth0
+```
+
+You should see lines like `PHY [...] driver [RTL8211F Gigabit
+Ethernet]` (gigabit) or `[RTL8211E]` (100 Mbit). This confirms the
+DTB you selected matches your hardware.
+
+### 1.3 Extract the image
 
 Right-click the `.img.xz` file → **7-Zip** → **Extract here**. You'll
 get a `.img` file of about 1-2 GB.
@@ -1258,4 +1309,7 @@ on older Pi-hole versions. Section 8.3 updated with `pihole -g` as
 the proper fix for the gravity-not-loaded-immediately-after-install
 symptom (replacing the unreliable "wait 30-60 seconds" advice).
 Section 1.1 expanded with rationale for choosing devmfc's image over
-Armbian for this use case.*
+Armbian for this use case. Section 1.2 added covering board revisions
+and DTB support — explains why hardware-lottery on Amlogic TV-boxes
+makes DTB-aware image selection essential, and why devmfc's curated
+`boot.config` list works well for the Tanix TX3 specifically.*
