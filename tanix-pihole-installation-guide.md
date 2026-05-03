@@ -65,7 +65,7 @@ values before starting — you'll need them in multiple steps.
 
 Optional appendices follow at the end:
 - [A. Recommended security hardening (SSH keys, etc.)](#appendix-a-recommended-security-hardening)
-- [B. Logrotate fix and dnsutils equivs-shim — details](#appendix-b-logrotate-fix-and-dnsutils-equivs-shim)
+- [B. Image-specific issues and recovery](#appendix-b--image-specific-issues-and-recovery)
 - [C. log2ram, journald limits, aml-multiboot — when and how](#appendix-c-log2ram-journald-limits-aml-multiboot)
 - [D. Troubleshooting](#appendix-d-troubleshooting)
 
@@ -429,100 +429,75 @@ password). Choose **"keep the local version currently installed"** (`N`)
 to retain SSH access via the default credentials. Otherwise you may lock
 yourself out.
 
-> A second prompt about `/etc/logrotate.conf` may appear *later* during
-> Pi-hole's installation phase, not here — see [Section 8.1](#81-build-a-dnsutils-equivs-shim).
-
-### 7.2 Install useful tools
+### 7.2 Install useful tools and pre-empt the logrotate prompt
 
 ```bash
-apt install -y curl wget ca-certificates dnsutils net-tools htop equivs
+apt install -y curl wget ca-certificates dnsutils net-tools htop
 ```
-
-`equivs` is needed for the next step (Pi-hole installer workaround).
 
 > **Expected output**: `dnsutils` will be silently substituted with
 > `bind9-dnsutils` (Debian Trixie's replacement). Several packages
 > (`ca-certificates`, `bind9-dnsutils`, `net-tools`) are likely already
 > installed and will be skipped. The actual new installs are typically
-> `curl`, `equivs`, `htop`, `wget` plus their dependencies.
+> `curl`, `htop`, `wget` plus their dependencies.
+
+**Critical step — install logrotate with the package-default config**:
+
+```bash
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  -o Dpkg::Options::="--force-confnew" logrotate
+```
+
+> **Why this step matters**: The devmfc image ships with a non-functional
+> `/etc/logrotate.conf` (just `minsize 10M / maxsize 20M`, missing the
+> standard `weekly`, `rotate 4`, and `include /etc/logrotate.d`
+> directives). When `logrotate` is later pulled in as a dependency by
+> Pi-hole's installer, dpkg detects the modified config and stops to
+> ask whether to keep the local version or install the package
+> maintainer's version. Pi-hole's installer redirects all output to
+> `/dev/null`, so this prompt is **invisible** — the installer hangs
+> indefinitely with no error message.
+>
+> By installing `logrotate` explicitly here, with `--force-confnew` to
+> automatically accept the package-default config, we remove the
+> hidden prompt before Pi-hole's installer reaches it.
+
+Verify logrotate now has the proper config:
+
+```bash
+cat /etc/logrotate.conf
+```
+
+Expected output should include `weekly`, `rotate 4`, `create`, and most
+critically `include /etc/logrotate.d`. Without `include`, per-package
+log rotation snippets — including Pi-hole's own `/etc/logrotate.d/pihole`
+that's installed later — would never be processed.
 
 ---
 
 ## 8. Install Pi-hole
 
-### 8.1 Build a dnsutils equivs-shim
+### 8.1 Run the Pi-hole installer
 
-Pi-hole's installer (current versions, as of writing) declares a
-dependency on the package `dnsutils`. In Debian Bookworm this was a
-transitional dummy package pointing to `bind9-dnsutils`. In **Trixie,
-`dnsutils` is gone entirely**, and Pi-hole's installer fails with
-`Error: Unable to install Pi-hole dependency package`.
-
-Workaround: build a small dummy package that satisfies the dependency.
-
-```bash
-mkdir -p /tmp/dnsutils-shim && cd /tmp/dnsutils-shim
-
-cat > dnsutils-control <<EOF
-Section: misc
-Priority: optional
-Standards-Version: 3.9.2
-Package: dnsutils
-Version: 1:9.20.21
-Depends: bind9-dnsutils
-Description: Transitional dummy package for dnsutils
- This is a dummy package that depends on bind9-dnsutils,
- to satisfy Pi-hole's installer on Debian 13 Trixie.
-EOF
-
-equivs-build dnsutils-control
-ls -la *.deb
-```
-
-You'll see a file named something like `dnsutils_9.20.21_all.deb`
-(the epoch `1:` is dropped from the filename, even though it's in the
-control file). Install it:
-
-```bash
-apt install -y ./dnsutils_9.20.21_all.deb
-```
-
-> **`/etc/logrotate.conf` modified prompt**: This step is typically
-> where the logrotate prompt appears, because installing the dnsutils
-> shim pulls in `logrotate` as an indirect dependency, and dpkg then
-> notices the locally-modified `/etc/logrotate.conf` shipped with the
-> devmfc image.
->
-> Choose **"install the package maintainer's version"** (`Y`) to get
-> the standard Debian config — the existing config is broken (missing
-> `include /etc/logrotate.d`, no rotation triggers).
->
-> See [Appendix B.1](#b1-the-logrotateconf-problem) for the diff and
-> full reasoning.
->
-> **On devmfc images newer than v6.12.56** this prompt may not appear
-> at all — devmfc confirmed in
-> [discussion #236](https://github.com/devmfc/debian-on-amlogic/discussions/236)
-> the underlying cause will be fixed.
-
-Verify:
-
-```bash
-dpkg -l dnsutils
-```
-
-Status should be `ii` (installed).
-
-> See [Appendix B](#appendix-b-logrotate-fix-and-dnsutils-equivs-shim)
-> for background on this issue and a link to the upstream Pi-hole
-> tracking issue.
-
-### 8.2 Run the Pi-hole installer
+With logrotate properly configured (step 7.2), the Pi-hole installer
+should now run cleanly on Trixie.
 
 ```bash
 cd ~
 curl -sSL https://install.pi-hole.net | bash
 ```
+
+> **Historical note**: Earlier versions of this guide (v1-v3) included
+> a workaround here using `equivs` to build a `dnsutils` dummy package,
+> because Pi-hole's `pihole-meta.deb` historically depended on the
+> obsolete `dnsutils` package which doesn't exist in Trixie. **This is
+> no longer required.** Pi-hole [PR #6444](https://github.com/pi-hole/pi-hole/pull/6444)
+> (October 2025) updated the dependency to `bind9-dnsutils|dnsutils`
+> using apt's alternatives syntax, which apt resolves correctly on
+> Trixie. See [Appendix B.2](#b2-the-pi-hole-dnsutils-dependency-on-trixie-historical)
+> for the historical context.
+
+### 8.2 Installer prompts
 
 The installer is interactive. Recommended answers:
 
@@ -809,11 +784,11 @@ PermitRootLogin no
 
 ---
 
-## Appendix B — Logrotate fix and dnsutils equivs-shim
+## Appendix B — Image-specific issues and recovery
 
 Two image quirks documented in detail.
 
-### B.1 The logrotate.conf problem
+### B.1 The logrotate.conf problem and Pi-hole installer hang
 
 **The actual cause** (confirmed by devmfc in
 [discussion #236](https://github.com/devmfc/debian-on-amlogic/discussions/236)):
@@ -825,11 +800,35 @@ minimal image, the script effectively *creates* it — but only with
 those two lines, missing all the Debian defaults (`weekly`,
 `rotate 4`, `create`, `include /etc/logrotate.d`).
 
-The result is a non-functional logrotate config that becomes a problem
-later when something pulls in `logrotate` as a dependency (e.g. when
-installing `equivs` for the dnsutils shim, or other tooling). At that
-point dpkg sees a "locally modified" config file and prompts you to
-choose between the package version and the local one.
+**The result is a non-functional logrotate config**, but the more
+serious consequence is that **Pi-hole's installer hangs indefinitely**
+on systems where logrotate is installed for the first time as a
+dependency of `pihole-meta`:
+
+1. Pi-hole's installer runs `apt-get -qq ... install /tmp/pihole-meta.deb`
+   with all output redirected to `/dev/null`
+2. `pihole-meta` depends on `logrotate`, so apt installs it
+3. During logrotate's configure phase, dpkg detects the locally-modified
+   `/etc/logrotate.conf` and stops to ask whether to keep it or use the
+   package version
+4. The dpkg prompt is rendered to a pseudo-terminal but no human is
+   watching that pty (the installer redirected output away)
+5. dpkg waits forever for input that will never come
+6. The installer appears to hang at `[i] Installing Pi-hole dependency package...`
+   with zero progress and no error
+
+**The fix** (now in section 7.2 of the main procedure): explicitly
+install `logrotate` with `--force-confnew` *before* running the
+Pi-hole installer:
+
+```bash
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  -o Dpkg::Options::="--force-confnew" logrotate
+```
+
+This installs logrotate, automatically accepts the package-default
+config (replacing the broken devmfc version), and leaves nothing for
+Pi-hole's installer to prompt about.
 
 **What you see in the diff**:
 
@@ -850,51 +849,120 @@ include /etc/logrotate.d
 ```
 
 The critical line is `include /etc/logrotate.d`. Without it, *none* of
-the per-package rotation snippets dropped there (rsyslog, apt, dpkg,
-and later anything Pi-hole or lighttpd installs) get processed.
+the per-package rotation snippets dropped there get processed —
+including Pi-hole's own `/etc/logrotate.d/pihole` snippet that's
+installed during the Pi-hole installer run.
 
-**Fix during apt upgrade or install** (recommended): when prompted,
-choose "install the package maintainer's version" (`Y`).
+**Recovering from a hung Pi-hole installer**
 
-**Fix after the fact** (if you accepted the local version):
+If you ran the installer without first fixing logrotate and it hangs
+at "Installing Pi-hole dependency package":
+
 ```bash
-apt install --reinstall -o Dpkg::Options::="--force-confnew" logrotate
-```
+# In a SECOND SSH session (don't kill the first one yet):
 
-> **Note**: This restores `/etc/logrotate.conf` to the clean Debian
-> default (with `weekly`, `rotate 4`, `include /etc/logrotate.d`,
-> etc.). It does **not** add back the `minsize 10M / maxsize 20M`
-> tweaks that the zram-config install script originally tried to
-> append. That's actually fine for USB-boot Pi-hole installations:
-> those tweaks were specifically aimed at zram-config behavior on
-> SD-card boots, and zram-config isn't active on USB anyway. For a
-> normal USB Pi-hole the Debian defaults are exactly what you want.
+# Confirm dpkg is stuck waiting on a hidden conffile prompt
+ps aux | grep -E "dpkg|apt-get" | grep -v grep
+# You should see apt-get and a dpkg --configure --pending process
+
+# Check that /etc/logrotate.conf still has the broken devmfc version
+cat /etc/logrotate.conf
+
+# Now go back to the FIRST session and press Ctrl+C to abort the installer
+
+# Wait 30 seconds, then in the second session check no apt/dpkg processes remain
+ps aux | grep -E "dpkg|apt-get" | grep -v grep
+# If they linger, kill them:
+# kill <pid>  (gentle first, kill -9 only if needed)
+
+# Now use the readline frontend (instead of the silent dialog frontend)
+# to complete dpkg's pending operations — you'll see the prompt this time
+DEBIAN_FRONTEND=readline dpkg --configure -a
+
+# When the prompt appears, answer Y (install package maintainer's version)
+
+# Verify the system is consistent
+apt-get install -f -y
+cat /etc/logrotate.conf | head -10   # Should show Debian defaults now
+
+# Re-run the Pi-hole installer
+curl -sSL https://install.pi-hole.net | bash
+```
 
 **This is being addressed**: devmfc has confirmed the zram-config
 install script will be fixed in a future image release. If you're
-following this guide on a devmfc image newer than v6.12.56, this
-prompt may not appear at all.
+following this guide on a devmfc image newer than v6.12.56, the
+broken `/etc/logrotate.conf` may not exist at all — in which case
+no fix is needed, and the explicit logrotate install in step 7.2
+becomes a no-op.
 
 Tracking discussion:
 https://github.com/devmfc/debian-on-amlogic/discussions/236
 
-### B.2 The Pi-hole dnsutils dependency on Trixie
+### B.2 The Pi-hole dnsutils dependency on Trixie (historical)
 
-Pi-hole's installer builds a meta-package `pihole-meta.deb` declaring a
-dependency on `dnsutils`. In Bookworm this was a transitional package
-that pointed to `bind9-dnsutils`. In **Trixie this transitional package
-was removed entirely**.
+Earlier versions of this guide included a workaround for a Pi-hole
+installer failure on Debian Trixie. **As of Pi-hole `pihole-meta`
+v0.7+ (released February 2026), this workaround is no longer
+necessary.** This appendix is kept for historical reference and to
+help anyone running into the original symptom on an older Pi-hole
+release.
 
-Result: the installer aborts with `Error: Unable to install Pi-hole
-dependency package` — and unhelpfully doesn't tell you why.
+**The original problem**: Pi-hole's installer built a meta-package
+`pihole-meta.deb` declaring a dependency on `dnsutils`. In Bookworm
+this was a transitional package pointing to `bind9-dnsutils`. In
+Trixie the transitional package was removed entirely, so installs
+failed with:
 
-Pi-hole's tracking issue: https://github.com/pi-hole/pi-hole/issues/6436
+```
+Error: Unable to install Pi-hole dependency package
+```
 
-The fix until Pi-hole updates pihole-meta.deb to declare
-`dnsutils|bind9-dnsutils`: build a tiny equivs-shim that "is" the
-missing dnsutils package and depends on `bind9-dnsutils`.
+**The fix in upstream Pi-hole**: [PR #6444](https://github.com/pi-hole/pi-hole/pull/6444)
+(merged October 2025) updated the dependency to
+`bind9-dnsutils|dnsutils`, using apt's alternatives syntax. apt's
+resolver picks `bind9-dnsutils` (which exists in Trixie) and the
+install completes cleanly.
 
-The full shim is in [Section 8.1](#81-build-a-dnsutils-equivs-shim).
+You can verify the fix is in your Pi-hole's installer by running:
+
+```bash
+grep -n "bind9-dnsutils" /etc/.pihole/automated\ install/basic-install.sh
+```
+
+If you see a line containing `bind9-dnsutils|dnsutils` in the
+`Depends:` declaration, the fix is present.
+
+**Empirical confirmation** (May 2026): a clean install of Pi-hole on
+devmfc's Debian Trixie image (v6.12.56) succeeded without any
+dnsutils workaround once the logrotate-prompt issue from
+[Appendix B.1](#b1-the-logrotateconf-problem-and-pi-hole-installer-hang)
+was addressed.
+
+**Tracking issue**: https://github.com/pi-hole/pi-hole/issues/6436
+
+**Legacy equivs-shim workaround** (only if you have an older Pi-hole
+version that still hits this issue):
+
+```bash
+apt install -y equivs
+
+mkdir -p /tmp/dnsutils-shim && cd /tmp/dnsutils-shim
+
+cat > dnsutils-control <<EOF
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Package: dnsutils
+Version: 1:9.20.21
+Depends: bind9-dnsutils
+Description: Transitional dummy package for dnsutils
+ This is a dummy package that depends on bind9-dnsutils.
+EOF
+
+equivs-build dnsutils-control
+apt install -y ./dnsutils_*.deb
+```
 
 ### B.3 Bonus: SSH config diff (cosmetic only)
 
@@ -1063,8 +1131,22 @@ Use the MAC that's currently in your DHCP reservation.
 
 ### D.6 Pi-hole installer hangs or fails
 
-- Did you build and install the dnsutils equivs-shim first?
-  ([Section 8.1](#81-build-a-dnsutils-equivs-shim))
+If the installer hangs silently at "Installing Pi-hole dependency
+package" with no error or progress:
+
+- Did you run the explicit logrotate install in step 7.2 with
+  `--force-confnew`? This is the most common cause of silent hangs.
+  See [Appendix B.1](#b1-the-logrotateconf-problem-and-pi-hole-installer-hang)
+  for the recovery procedure.
+
+If the installer fails with `Error: Unable to install Pi-hole
+dependency package`:
+
+- Is your Pi-hole release recent enough to have the dnsutils fix
+  ([PR #6444](https://github.com/pi-hole/pi-hole/pull/6444), Oct 2025)?
+  Check with: `grep "bind9-dnsutils" /etc/.pihole/automated\ install/basic-install.sh`
+  If you don't see `bind9-dnsutils|dnsutils`, fall back to the legacy
+  equivs-shim from [Appendix B.2](#b2-the-pi-hole-dnsutils-dependency-on-trixie-historical).
 - Is `/etc/resolv.conf` pointing somewhere that can resolve names?
   Test: `dig deb.debian.org @1.1.1.1 +short`
 - Is system time correct? `timedatectl status` — HTTPS cert validation
@@ -1072,9 +1154,9 @@ Use the MAC that's currently in your DHCP reservation.
 
 ### D.7 "Unsupported OS detected: Debian 13" when running `pihole -up`
 
-Pi-hole as of writing doesn't officially support Trixie yet. The
-install works (with the dnsutils shim) but `pihole -up` may refuse
-to update. Workaround: re-run the installer to update Pi-hole:
+Pi-hole as of writing doesn't officially mark Trixie as a supported
+OS, even though installs work. `pihole -up` may refuse to update.
+Workaround: re-run the installer to update Pi-hole:
 ```bash
 curl -sSL https://install.pi-hole.net | bash
 ```
@@ -1112,3 +1194,17 @@ MAXDBDAYS default (91 in Pi-hole 6, not 365), adds NTP-vs-timezone
 clarification, adds blocklist auto-update info, adds SSH host-key
 clearing tip for reinstalls, and adds a logrotate verification
 section. Reflects feedback from a clean second-time installation.*
+
+*Version 4 — based on a third clean install with deliberate testing,
+the procedure has been substantially simplified. The dnsutils
+equivs-shim workaround has been removed from the main flow because
+[Pi-hole PR #6444](https://github.com/pi-hole/pi-hole/pull/6444)
+makes it unnecessary for current versions. The actual cause of
+silent installer hangs on this image was identified as the
+locally-modified `/etc/logrotate.conf` triggering an invisible dpkg
+conffile prompt during `pihole-meta` configuration. Step 7.2 now
+explicitly installs `logrotate` with `--force-confnew` to pre-empt
+this prompt before the Pi-hole installer runs. Appendix B.1 documents
+the recovery procedure if you hit the hang anyway, and Appendix B.2
+preserves the dnsutils workaround as historical reference for those
+on older Pi-hole versions.*
